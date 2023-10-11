@@ -1,27 +1,23 @@
 h1 {
-    color: blue;
+    color: #3498db;
     text-align: center;
-    padding-top: 10%;
+    margin-top: 2rem;
 }
 
-.box-container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-sizing: content-box;
-    width: 30%;
-    justify-items: center;
+.container {
+    text-align: center;
+    margin-top: 2rem;
 }
 
-.box-container input {
+.container input {
     padding: 10px;
     margin: 10px;
 }
 
-.box-container .box button {
+.container button {
     padding: 10px;
-    margin: 10px;
+    display: block;
+    margin: 0 auto;
 }
 
 .footer {
@@ -31,29 +27,5 @@ h1 {
     height: 60px;
     background-color: #f5f5f5;
     text-align: center;
-}
-
-#loader {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    z-index: 1;
-    width: 120px;
-    height: 120px;
-    margin: -76px 0 0 -76px;
-    border: 16px solid #f3f3f3;
-    border-radius: 50%;
-    border-top: 16px solid #3498db;
-    -webkit-animation: spin 2s linear infinite;
-    animation: spin 2s linear infinite;
-}
-
-@-webkit-keyframes spin {
-    0% { -webkit-transform: rotate(0deg); }
-    100% { -webkit-transform: rotate(360deg); }
-}
-  
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    padding: 1rem 0;
 }

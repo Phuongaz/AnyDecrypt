@@ -28,14 +28,13 @@ import (
 const TOKEN_FILE = "token.json"
 const KEYS_FILE = "keys.db"
 
-// decrypt using cfb with segmentsize = 1
 func cfb_decrypt(data []byte, key []byte) ([]byte, error) {
 	b, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return nil, err
 	}
 
-	shift_register := append(key[:16], data...) // prefill with iv + cipherdata
+	shift_register := append(key[:16], data...)
 	_tmp := make([]byte, 16)
 	off := 0
 	for off < len(data) {
@@ -57,7 +56,6 @@ type ContentJson struct {
 }
 
 func decrypt_pack(pack_zip []byte, filename, key string) error {
-	// open reader and writers
 	r := bytes.NewReader(pack_zip)
 	z, err := zip.NewReader(r, r.Size())
 	if err != nil {
@@ -73,7 +71,6 @@ func decrypt_pack(pack_zip []byte, filename, key string) error {
 
 	written := make(map[string]interface{})
 
-	// read content json file
 	var content ContentJson
 	{
 		ff, err := z.Open("contents.json")
@@ -86,7 +83,7 @@ func decrypt_pack(pack_zip []byte, filename, key string) error {
 		} else {
 			buf, _ := io.ReadAll(ff)
 			dec, _ := cfb_decrypt(buf[0x100:], []byte(key))
-			dec = bytes.Split(dec, []byte("\x00"))[0] // remove trailing \x00 (example: play.galaxite.net)
+			dec = bytes.Split(dec, []byte("\x00"))[0]
 			fw, _ := zw.Create("contents.json")
 			fw.Write(dec)
 			if err := json.Unmarshal(dec, &content); err != nil {
@@ -96,19 +93,21 @@ func decrypt_pack(pack_zip []byte, filename, key string) error {
 		}
 	}
 
-	// copy and decrypt all content
 	for _, entry := range content.Content {
 		ff, _ := z.Open(entry.Path)
 		buf, _ := io.ReadAll(ff)
 		if entry.Key != "" {
 			buf, _ = cfb_decrypt(buf, []byte(entry.Key))
 		}
+		if len(buf) == 0 {
+			continue
+		}
+
 		fw, _ := zw.Create(entry.Path)
 		fw.Write(buf)
 		written[entry.Path] = true
 	}
 
-	// copy everything not in the contents file
 	for _, src_file := range z.File {
 		if written[src_file.Name] == nil {
 			zw.Copy(src_file)
@@ -118,8 +117,8 @@ func decrypt_pack(pack_zip []byte, filename, key string) error {
 	return nil
 }
 
-func dump_keys(keys map[string]string) {
-	f, err := os.OpenFile(KEYS_FILE, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+func dump_keys(host string, keys map[string]string) {
+	f, err := os.OpenFile(host+"/"+KEYS_FILE, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -145,18 +144,18 @@ func download_pack(pack *resource.Pack) ([]byte, error) {
 	return buf, nil
 }
 
-var pool = packet.NewPool()
+var pool = packet.NewClientPool()
 
 func PacketLogger(header packet.Header, payload []byte, src, dst net.Addr) {
 	var pk packet.Packet
 	buf := bytes.NewBuffer(payload)
-	r := protocol.NewReader(buf, 0)
+	r := protocol.NewReader(buf, 0, false)
 	pkFunc, ok := pool[header.PacketID]
 	if !ok {
 		pk = &packet.Unknown{PacketID: header.PacketID}
 	}
 	pk = pkFunc()
-	pk.Unmarshal(r)
+	pk.Marshal(r)
 	dir := "<-C"
 	if strings.HasPrefix(strings.Split(src.String(), ":")[1], "19132") {
 		dir = "S->"
@@ -169,7 +168,6 @@ func PacketLogger(header packet.Header, payload []byte, src, dst net.Addr) {
 }
 
 func start(target string) []string {
-	// get target server ip
 	var save_encrypted bool
 	var debug bool
 
@@ -179,7 +177,7 @@ func start(target string) []string {
 		target = strings.Replace(target, "\n", "", -1)
 		target = strings.Replace(target, "\r", "", -1)
 	}
-	if len(strings.Split(target, ":")) == 1 { // add default port if not set
+	if len(strings.Split(target, ":")) == 1 {
 		target += ":19132"
 	}
 
@@ -216,8 +214,7 @@ func start(target string) []string {
 		panic(err)
 	}
 
-	// connect
-	fmt.Printf("Connecting to %s\n", target)
+	log.Printf("Connecting to %s\n", target)
 	serverConn, err = minecraft.Dialer{
 		TokenSource: TokenSrc,
 		ClientData:  login.ClientData{},
@@ -238,18 +235,17 @@ func start(target string) []string {
 		panic(err)
 	}
 
-	println("Connected")
+	log.Println("Connected")
 
 	if len(serverConn.ResourcePacks()) > 0 {
-		println("ripping Resource Packs")
+		log.Println("ripping Resource Packs")
 		os.Mkdir(host, 0777)
 
-		// dump keys, download and decrypt the packs
 		keys := make(map[string]string)
 		paths := make([]string, 0)
 		for _, pack := range serverConn.ResourcePacks() {
 			keys[pack.UUID()] = pack.ContentKey()
-			fmt.Printf("ResourcePack(Id: %s Key: %s | Name: %s Version: %s)\n", pack.UUID(), keys[pack.UUID()], pack.Name(), pack.Version())
+			log.Printf("ResourcePack(Id: %s Key: %s | Name: %s Version: %s)\n", pack.UUID(), keys[pack.UUID()], pack.Name(), pack.Version())
 
 			pack_data, err := download_pack(pack)
 			if err != nil {
@@ -258,20 +254,21 @@ func start(target string) []string {
 			if save_encrypted {
 				os.WriteFile(host+"/"+pack.Name()+".ENCRYPTED.zip", pack_data, 0666)
 			}
-			fmt.Printf("Decrypting...\n")
+			log.Println("Decrypting...")
 			path := host + "/" + pack.Name() + ".zip"
 			if err := decrypt_pack(pack_data, path, keys[pack.UUID()]); err != nil {
 				panic(fmt.Errorf("failed to decrypt %s: %s", pack.Name(), err))
 			}
 			paths = append(paths, path)
 		}
-		fmt.Printf("Writing keys to %s\n", KEYS_FILE)
-		dump_keys(keys)
+		log.Printf("Writing keys to %s\n", KEYS_FILE)
+		dump_keys(host, keys)
+
 		return paths
 	} else {
-		fmt.Printf("No Resourcepack sent\n")
+		log.Println("No Resourcepack sent")
 	}
-	fmt.Printf("Done!\n")
+	log.Println("Done!")
 	return nil
 }
 
@@ -288,11 +285,55 @@ func Decrypt(w http.ResponseWriter, r *http.Request) {
 	}
 	paths := start(ip + ":" + port)
 	if len(paths) > 0 {
-		zipfile := paths[0]
+		err := zipFiles(ip+".zip", paths)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", "attachment; filename="+zipfile)
-		http.ServeFile(w, r, zipfile)
+		w.Header().Set("Content-Disposition", "attachment; filename="+ip+".zip")
+		http.ServeFile(w, r, ip+".zip")
 	} else {
 		w.WriteHeader(404)
 	}
+}
+
+func zipFiles(zipFileName string, files []string) error {
+	zipFile, err := os.Create(zipFileName)
+	if err != nil {
+		return err
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+	for _, filePath := range files {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		fileInfo, err := file.Stat()
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(fileInfo)
+		if err != nil {
+			return err
+		}
+
+		header.Name = fileInfo.Name()
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(writer, file)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

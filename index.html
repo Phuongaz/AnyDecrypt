@@ -4,24 +4,34 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DecryptAny</title>
+    <title>AnyDecrypt</title>
     <link rel="stylesheet" href="style.css">
     <script type="text/javascript" src="script.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-iYQeCzEYFbKjA/T2uDLTpkwGzCiq6soy8tYaI1GyVh/UjpbCx/TYkiZhlZB6+fzT" crossorigin="anonymous">
 </head>
 <body>
-    <h1>DecryptAny</h1>
-    <div class="box-container">
-        <div id="box">
-            <form action="/decrypt" name="infomation" method="GET">
-                <input class="form-control" id="ip" name="ip" type="text" placeholder="zeqa.net"> 
-                <input class="form-control" id="port" name="port" type="number" placeholder="19132">
-                <button type="submit" class="btn btn-primary">Decrypt</button>
+    <div class="container text-center">
+        <h1 class="mt-5">AnyDecrypt</h1>
+        <div class="box-container mt-5">
+            <form action="/decrypt" name="information" method="GET" onsubmit="submitForm(event)">
+                <input class="form-control mb-3" id="ip" name="ip" type="text" placeholder="play.abc.net"> 
+                <input class="form-control mb-3" id="port" name="port" type="number" placeholder="19132">
+                <button type="submit" id="btn-decrypt" class="btn btn-primary">Decrypt</button>
             </form>
+            <div id="loading" style="display: none;">
+                <div class="spinner-border text-primary mt-3" role="status">
+                    <span class="sr-only">.</span>
+                </div>
+            </div>
+            <div id="btn-download" style="display: none;">
+                <a id="download" class="btn btn-primary" href="#" role="button">Download</a>
+            </div>
         </div>
     </div>
+    <footer class="footer mt-5">
+        <div class="container text-center">
+            <span>Automatically download and decrypt resource packs from any server</span>
+        </div>
+    </footer>
 </body>
-<footer>
-    <span class="footer">Automatically download and decrypt resources packs from any server</span>
-</footer>
 </html>
